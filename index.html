@@ -1,0 +1,329 @@
+<html>
+    <head>
+        <meta charset="utf8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>Wordle W/ Friends!</title>
+        <meta name="description" content="You know Wordle right? Play any word of the day, past or future.">
+
+        <!-- FB Meta Tags -->
+        <meta property="og:type" content="website">
+        <meta property="og:title" content="Wordle with Friends - pick a word and challenge your friends!">
+        <meta property="og:description" content="You know Wordle right? Create a custom word and challenge your friends">
+        <!-- Sorry Wordle fam, this is totally a labor of love tho -->
+        <meta property="og:image" content="https://www.dailywordle.com/images/wordle_og_1200x630.png">
+
+        <!-- Twitter Meta Tags -->
+        <meta name="twitter:card" content="summary_large_image">
+        <meta property="twitter:domain" content="TCYTseven">
+        
+        <link href="https://mottaquikarim.github.io/wordle_timemachine/main/wordle_timemachine_icon_32.png" rel="icon shortcut" sizes="3232">
+        <link href="https://mottaquikarim.github.io/wordle_timemachine/main/wordle_timemachine_icon_114.png" rel="apple-touch-icon" sizes="114x114">
+        <link href="https://mottaquikarim.github.io/wordle_timemachine/main/wordle_timemachine_icon_196.png" rel="apple-touch-icon">
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    </head>
+    <body>
+        <!-- 
+            Hello Wrold, intrepid viewer-of-source-code! Welcome.
+
+            Let's get one thing out of the way -- you can view the answer by looking at localstorage. Hell, you can change the answer too.
+
+            The purpose of this is not to spoil the fun but mainly to allow people to play previous words that they may have missed.
+
+            A side effect of this is future words also work. But! This may change as soon as wordle's src changes. So tread with caution.
+			
+			CREDIT: @mottaquikarim
+         -->
+        <script>
+        hasClue = true
+        if (location.search) {
+            try {
+                const [word, clue] = location.search.slice(1).split("&").map(item => atob(decodeURIComponent(item).split("=")[1]))
+                console.log(word, clue)
+                getWord(word.toLowerCase(), clue.toLowerCase())
+            } catch(e) {
+                hasClue = false
+                getWord()
+            }
+            
+        } else {
+            hasClue = false
+            getWord()
+        }
+       
+        function getWord(word, clue) {
+            // hack! let's override includes so that game does not throw error for non standard words
+            inc = Array.prototype.includes
+            Array.prototype.includes = function() {
+                // hack!
+                if (this.length > 2000) return true
+                return inc.apply(this, arguments)
+            }
+            // everything else is purely in the service of loading the src code
+            fetch("https://x6ca288in5.execute-api.us-east-1.amazonaws.com/default/get_wordle")
+                .then(resp => resp.text()).then(html => {
+                // Convert the HTML string into a document object
+                var parser = new DOMParser();
+                var doc = parser.parseFromString(html, 'text/html');
+                console.log(html)
+
+                document.querySelector('head').innerHTML = doc.head.innerHTML;
+                document.querySelector('body').innerHTML = doc.body.innerHTML;
+                loaders = []
+                document.querySelectorAll("body > script").forEach(scr => {
+                    // very gross, inserting HTML does not actually run the scripts, so we resort to dirty tricks
+                    if (scr.getAttribute('src') && scr.getAttribute('src').indexOf('main') != -1) {
+                        console.log(scr.getAttribute('src').indexOf('www.powerlanguage.co.uk/wordle/') == -1)
+                        console.log(scr.getAttribute('src'))
+                        newScr = document.createElement('script')
+                        newScr.type  = "text/javascript";
+                        newScr.src = scr.getAttribute('src')
+                        if (scr.getAttribute('src').indexOf('www.powerlanguage.co.uk/wordle/') == -1) {
+                            loaders.push("https://x6ca288in5.execute-api.us-east-1.amazonaws.com/default/get_wordle?script=" + scr.getAttribute('src'))
+                            console.log(loaders)
+                            return
+                        }
+                        document.body.appendChild(newScr);
+                        return;
+                    }
+                    newScr = document.createElement('script')
+                    newScr.text = scr.text
+                    document.body.appendChild(newScr);
+                })
+                return loaders
+            })
+            .then(urls => {
+                console.log('here', loaders)
+                modal = document.createElement("div")
+                modal.setAttribute('style', `
+    position: fixed;
+    z-index: 99999;
+    background: rgba(0,0,0,0.8);
+    height: 100%;
+    width: 100%;
+    top: 0;
+    left: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+`)
+                modal.innerHTML = "🎉 Loading 🎉"
+                document.body.appendChild(modal)
+                localStorage.removeItem("gameState")
+                l = urls.length
+                i = 0
+                urls.forEach(url => {
+                    console.log(url)
+                    fetch(url)
+                    .then(resp => resp.text())
+                    .then(js => {
+                        console.log(js)
+                        newScr = document.createElement('script')
+                        newScr.type  = "text/javascript";
+                        newScr.text = js
+                        document.body.appendChild(newScr);
+                        i += 1
+                        if (i == l) {
+                            clueEl = document.createElement("div")
+                            clueEl.innerHTML = `
+                                <div class="examples" style="border-bottom: none;">
+                                    <p>😱 <strong>With Friends</strong></p>
+                                    <p>whats good its tejas here and i am here to tell you to not sell and not be trash in wordle!</p>
+                                </div>
+                               
+                            `
+                            if (hasClue) {
+                                clueEl.innerHTML += ` <div class="examples" style="border-bottom: none;">
+                                    <p style="text-align: center;"><strong>💡 Your Clue: </strong></p>
+                                    <p style="text-align: center;"><strong>👉</strong>&nbsp;&nbsp;${clue}&nbsp;&nbsp;<strong>👈</strong></p>
+                                </div>`
+                            }
+                            setTimeout(_ => {
+                                k = document.querySelector("game-app")
+                                k.solution = word
+
+                                document.querySelector('game-app').shadowRoot.querySelector('game-modal').querySelector('game-help').shadowRoot.querySelectorAll("section .instructions p")[2].after(clueEl)
+
+                                try {
+                                    document.querySelector('game-app').shadowRoot.querySelector('game-modal').querySelector('game-help').shadowRoot.querySelector("section .instructions > .examples").nextElementSibling.remove()
+                                } catch(e) {}
+
+                                
+                                document.querySelector("game-app").shadowRoot.querySelector("game-theme-manager").querySelector("#help-button").addEventListener("click", e => {
+                                    console.log(e.target)
+                                    document.querySelector('game-app').shadowRoot.querySelector('game-page').querySelector('game-help').shadowRoot.querySelectorAll("section .instructions p")[2].after(clueEl)
+                                })
+                                d = document.createElement("div")
+                                d.setAttribute('class', 'menu')
+                                
+                                b0 = document.createElement("button")
+                                b0.setAttribute("id", "new-button")
+                                b0.setAttribute("style", `position: relative; top: -6px; font-size: 18px;`)
+                                b0.setAttribute("class", "icon")
+                                b0.setAttribute("aria-label", "new")
+                                b0.innerHTML = "🧩"
+                                b1 = document.createElement("button")
+                                b1.setAttribute("id", "clue-button")
+                                b1.setAttribute("style", `position: relative; top: -6px; font-size: 18px;`)
+                                b1.setAttribute("class", "icon")
+                                b1.setAttribute("aria-label", "clue")
+                                b1.innerHTML = "💡"
+                                document.querySelector("game-app").shadowRoot.querySelector("game-theme-manager").querySelectorAll("#game header .menu")[0].append(b1)
+                                document.querySelector("game-app").shadowRoot.querySelector("game-theme-manager").querySelectorAll("#game header .menu")[0].append(b0)
+                                document.querySelector("game-app").shadowRoot.querySelector("game-theme-manager").querySelector("#game header .menu #help-button").addEventListener("click", function(e) {
+                                        try {
+                                            document.querySelector('game-app').shadowRoot.querySelector('game-help').shadowRoot.querySelector("section .instructions > .examples").nextElementSibling.remove()
+                                        } catch(e) {}
+                                        
+                                });
+                                
+                                b1.addEventListener("click", function(e) {
+                                    console.log(e)
+                                    const s = document.querySelector("game-app").shadowRoot.querySelector("game-page")
+                                    const t = document.createTextNode("💡Your Clue");
+                                    const u = document.createElement("div")
+                                    u.setAttribute("slot", "content")
+                                    u.setAttribute("page", "")
+                                    u.innerHTML = `<section style="text-align: center;">
+                                        <p style="text-align: center;"><strong>👉</strong>&nbsp;&nbsp;${clue}&nbsp;&nbsp;<strong>👈</strong></p>
+                                    </section>`
+                                    s.appendChild(t);
+                                    s.appendChild(u);
+                                   
+                                    s.setAttribute("open", "")
+                                })
+                                b0.addEventListener("click", function(e) {
+                                    console.log(e)
+                                    const s = document.querySelector("game-app").shadowRoot.querySelector("game-page")
+                                    const t = document.createTextNode("🧩 New Game");
+                                    const u = document.createElement("div")
+                                    u.setAttribute("slot", "content")
+                                    u.setAttribute("page", "")
+                                    u.innerHTML = `<div id="link">
+                                        <p><strong>Welcome to Wordle with Friends</strong></p>
+                                        <p>How to Play</p>
+                                        <ol>
+                                            <li>Pick a word! Make it fun</li>
+                                            <li>Add a clue -- 120 characters only</li>
+                                            <li>Generate a URL and send over to your friend(s) to guess!</li>
+                                            <li>Enjoy! - Tejas</li>
+                                            <img src="testlol.png" />
+                                        </ol>
+                                        <strong>Word:</strong><br/>
+                                        <input type="text" maxlength="5" id="word" /><br/><br/>
+                                        <strong>Clue:</strong><br/>
+                                        <textarea maxlength="50" id="clue"></textarea><br/><br/>
+                                        <input type="button" id="submit" value="Generate Link!" />
+                                    </div>`
+                                    s.appendChild(t);
+                                    s.appendChild(u);
+                                    s.setAttribute("open", "")
+
+                                    setTimeout(_ => {
+                                        w = document.querySelector("game-app").shadowRoot.querySelector("game-page").querySelector("#word")
+                                        w.addEventListener("keydown", function(e) {
+                                            regex = /\W|_|[0-9]/g
+                                            if (e.key.toLowerCase().match(regex)) {
+                                                e.preventDefault()
+                                                alert("character " + e.key + " is not allowed!")
+                                            }
+                                        })
+                                    }, 10)
+                                    u.querySelector("#submit").addEventListener('click', function(e) {
+                                        word = u.querySelector("#word")
+                                        clue = u.querySelector("#clue")
+
+                                        if (!word.value) {
+                                            alert("Please pick a word!")
+                                            return
+                                        }
+                                        if (!clue.value) {
+                                            alert("Please add a clue!")
+                                            return
+                                        }
+
+                                        // console.log(clue.value.obfs(13))
+                                        ob_clue = btoa(clue.value.toLowerCase())
+                                        ob_word = btoa(word.value.toLowerCase())
+
+                                        url = `?a=${encodeURIComponent(ob_word)}&b=${encodeURIComponent(ob_clue)}`
+
+                                        link = u.querySelector("#link")
+                                        link.setAttribute("style", "text-align: center;")
+                                        link.innerHTML = ""
+                                        // h1 = document.createElement("h4")
+                                        // h1.setAttribute('style', 'text-align: center; width: 100%;')
+                                        // h1.innerHTML = `🎉 Share your <a href="${url}" target="_blank">Wordle URL</a>! 🎉`;
+                                        // link.appendChild(h1)
+
+                                        // txt = document.createElement("textarea")
+                                        // txt.setAttribute('style', 'width: 100%; border: 1px solid black; font-family: monospace;')
+                                        // txt.innerHTML = new URL(url, document.baseURI).href
+                                        // link.appendChild(txt)
+                                        // txt.select()
+                                        // document.execCommand("copy")
+                                        // label = document.createElement("span")
+                                        // label.setAttribute('style', 'background-color: black; padding: 2px; display: block; color: white; text-align: center;')
+                                        // label.innerHTML = "Copied to clipboard!"
+                                        // link.appendChild(label)
+
+                                        
+
+                                        oldStatus = document.querySelector("game-app").gameStatus
+                                        document.querySelector("game-app").gameStatus = "WIN"
+                                        document.querySelector("game-app").dayOffset = "...with friends! (💡 Clue is: " + clue.value + ")"
+                                        document.querySelector("game-app").dayOffset += `\n\nCan you guess the word??\n${new URL(url, document.baseURI).href}\n\n`
+                                        document.querySelector("game-app").evaluations = [null,null,null,null,null,null]
+
+                                        rowIndex = document.querySelector("game-app").rowIndex
+                                        // seriously, don't try this at home
+                                        _concat = String.prototype.concat
+                                        String.prototype.concat = function() {
+                                            if (arguments[0] === rowIndex && arguments[1] == "/") {
+                                                return _concat.apply(this,[""]);
+                                            }
+                                            if (arguments[0] === 6) {
+                                                return _concat.apply(this,[""]);
+                                            }
+                                            return _concat.apply(this, arguments)
+                                        }
+                                        document.querySelector("game-app").showStatsModal()
+                                        document.querySelector("game-app").shadowRoot.querySelector("game-modal").removeAttribute("open")
+                                        k = document.querySelector("game-app").shadowRoot.querySelector("game-stats").shadowRoot.querySelector(".share")
+                                        k.querySelector("#share-button").childNodes[0].nodeValue = "🎉 Share your Wordle with Friends! 🎉";
+                                        k.querySelector("#share-button game-icon").remove()
+                                        
+
+                                        h1 = document.createElement("strong")
+                                        h1.setAttribute('style', 'text-align: center; width: 100%; display: block; margin-bottom: 20px;')
+                                        h1.innerHTML = `🎉 Open your <a href="${url}" target="_blank">Wordle</a> in a new tab! 🎉`;
+                                        link.appendChild(h1)
+
+                                        document.querySelector("game-app").shadowRoot.querySelector("#link").appendChild(k)
+
+                                        but = document.createElement("button")
+                                        but.innerHTML = "Generate another"
+                                        but.onclick = e => location.reload()
+                                        link.appendChild(but)
+                                    })
+                                })
+                                if (!hasClue) {
+                                    document.querySelector('game-app').shadowRoot.querySelector('game-modal').removeAttribute("open")
+                                    document.querySelector("game-app").shadowRoot.querySelector("game-page").shadowRoot.querySelector(".content header game-icon").remove()
+                                    b0.click()
+                                }
+                                document.querySelector("game-app").dayOffset = "...with friends! (💡 Clue was: " + clue + ")"
+                                document.querySelector("game-app").dayOffset += `\n\nPlay it yourself:\n${location.href}\n\n`
+                                modal.remove()
+                            }, 500)
+                            
+                        }
+                    })
+                })
+            })
+            .catch(console.log)
+        }
+        </script>
+    </body>
+</html>
