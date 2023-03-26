@@ -1,4 +1,5 @@
 # wordle
 Enjoy wordle with friends!
-* Full credit to https://mottaquikarim.github.io/wordle_with_friends/
-* Enjoy!
+* Customize Words (even if under 5 letters!)
+* Heavilly inspired code from someone else.
+* Made in 2022
